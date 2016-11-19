@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+
+import json
+import sys
+import os
+import subprocess
+
+def terminate(msg):
+	print(msg, file=sys.stderr)
+	sys.exit(1)
+
+def writePrivateKey(key):
+	sshDir = os.path.expanduser("~/.ssh")
+	keyFilePath = os.path.join(sshDir, "id_rsa")
+
+	if not os.path.isfile(keyFilePath):
+		with open(keyFilePath, "w") as fp:
+			print(key, file=fp)
+		os.chmod(keyFilePath, 0o600)
+
+def subprocessCall(args):
+	cp = subprocess.run(args, stdout=subprocess.PIPE, universal_newlines=True)
+
+	cp.check_returncode()
+
+	return cp
+	
+
+config = json.loads("".join(sys.stdin.readlines()))
+
+if "params" not in config:
+	terminate("params required")
+
+params = config["params"]
+
+if "source" not in config:
+	terminate("source required")
+
+source = config["source"]
+
+if "private_key" not in source:
+	terminate("private_key required in source")
+if "user" not in params:
+	terminate("user required in params")
+if "host" not in params:
+	terminate("host required in params")
+if "from_image" not in params:
+	terminate("from_image required in params")
+
+
+writePrivateKey(source["private_key"])
+
+portMapping = ""
+
+if "port_mapping" in params:
+	if not isinstance(params["port_mapping"], list):
+		terminate("port_mapping must be a list")
+
+	portMapping = "-p " + " -p ".join(params["port_mapping"])
+
+cmd="""
+docker ps --filter="ancestor={image}" --format="{{{{.ID}}}}" \
+  | xargs -IX sh -c 'if [ -n "X" ]; then echo stopping X; docker stop X; fi';
+
+docker pull {image} || exit 1;
+""".format(
+	image=params["from_image"],
+)
+
+sshUrl = "{}@{}".format(params["user"], params["host"])
+
+print(subprocessCall(["ssh", sshUrl, cmd]).stdout, file=sys.stderr)
+
+containerId = subprocessCall([
+	"ssh",
+	sshUrl,
+	"docker run -d {portMapping} -t {image} || exit 1".format(
+		image=params["from_image"],
+		portMapping=portMapping
+	)
+]).stdout.split("\n")[0]
+
+print("ran at container " + containerId, file=sys.stderr)
+
+outputData = {}
+
+if "build_url_for_port" in params:
+	deployPort = subprocessCall([
+		"ssh",
+		sshUrl,
+		"docker port {containerId} {port} || exit 1".format(
+			containerId = containerId,
+			port = params["build_url_for_port"]
+		)
+	]).stdout.split("\n")[0].split(":")[1]
+
+	deployUrl = "http://" + params["host"] + ":" + deployPort
+
+	outputData["url"] = deployUrl
+
+print(json.dumps({
+	"version": outputData
+}, indent=2))
