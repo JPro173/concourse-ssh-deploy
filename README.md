@@ -1,6 +1,9 @@
 concourse-ssh-deploy
 ========================================
 
+[aecepoglu/concourse-ssh-deploy on Docker Hub](http://hub.docker.com/r/aecepoglu/concourse-ssh-deploy)
+
+
 A Concourse resource that you can use to deploy docker images in ssh'ed hosts
 
 Source Configuration
