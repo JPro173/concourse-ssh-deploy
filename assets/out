@@ -51,6 +51,7 @@ if "from_image" not in params:
 writePrivateKey(source["private_key"])
 
 portMapping = ""
+volumeMapping = "";
 
 if "port_mapping" in params:
 	if not isinstance(params["port_mapping"], list):
@@ -58,25 +59,47 @@ if "port_mapping" in params:
 
 	portMapping = "-p " + " -p ".join(params["port_mapping"])
 
+if "volume_mapping" in params:
+	if not isinstance(params["volume_mapping"], list):
+		terminate("volume_mapping must be a list")
+
+	volumeMapping = "-v " + " -v ".join(params["volume_mapping"])
+
+dockerImage=params["from_image"]
+
+if "from_image_tag" in params:
+	dockerImage = dockerImage + ":" + params["from_image_tag"]
+
 cmd="""
 docker ps --filter="ancestor={image}" --format="{{{{.ID}}}}" \
   | xargs -IX sh -c 'if [ -n "X" ]; then echo stopping X; docker stop X; fi';
 
 docker pull {image} || exit 1;
 """.format(
-	image=params["from_image"],
+	image=dockerImage,
 )
 
 sshUrl = "{}@{}".format(params["user"], params["host"])
 
 print(subprocessCall(["ssh", sshUrl, cmd]).stdout, file=sys.stderr)
 
+envVars = ""
+
+if "env" in params:
+	if type(params["env"]) is not dict:
+		terminate("params.env must be an object")
+
+	for k in params["env"]:
+		envVars = envVars + " -e " + k + "=" + str(params["env"][k])
+
 containerId = subprocessCall([
 	"ssh",
 	sshUrl,
-	"docker run -d {portMapping} -t {image} || exit 1".format(
-		image=params["from_image"],
-		portMapping=portMapping
+	"docker run -d {envVars} {portMapping} {volumeMapping} -t {image} || exit 1".format(
+		image=dockerImage,
+		portMapping=portMapping,
+		envVars=envVars,
+		volumeMapping=volumeMapping
 	)
 ]).stdout.split("\n")[0]
 

@@ -30,7 +30,9 @@ doesn't do anything
 * `host`: *REQUIRED* ssh host
 * `from_image`: *REQUIRED* docker image to deploy
 * `port_mapping`: *OPTIONAL* port mapping for docker image. Accepts the same format as docker run. For example: `["80", "3001:4003"]
+* `volume_mapping`: *OPTIONAL* volume/mount mapping for docker image. Accepts the same format as `docker run`. For example: `["/host/directory:/container/directory"]
 * `build_url_for_port`: *OPTIONAL* if given a port number, then the url in the form of `"http://{host}:{build_url_for_port}"` is written inside the file *info/url*. The example below should help explain.
+* `env`: *OPTIONAL* environment variables to set. For example: `{PORT: 3000, MONGO_URL: mongodb://192.168.2.101}`
 
 Sample
 ---------
