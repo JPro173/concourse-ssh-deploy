@@ -69,6 +69,11 @@ dockerImage=params["from_image"]
 
 if "from_image_tag" in params:
 	dockerImage = dockerImage + ":" + params["from_image_tag"]
+if "from_image_tag_file" in params:
+	if "from_image_tag" not in params:
+		dockerImage = dockerImage + ":"
+	with open(os.path.join(sys.argv[1], params["from_image_tag_file"])) as fp:
+		dockerImage = dockerImage + fp.readlines()[0].strip()
 
 cmd="""
 docker ps --filter="ancestor={image}" --format="{{{{.ID}}}}" \
@@ -90,16 +95,24 @@ if "env" in params:
 		terminate("params.env must be an object")
 
 	for k in params["env"]:
-		envVars = envVars + " -e " + k + "=" + str(params["env"][k])
+		envVars = envVars + " -e " + k + "=\"" + str(params["env"][k]) + "\""
+
+extraOpts = ""
+
+if "extra_opts" in params:
+	if type(params["extra_opts"]) is not list:
+		terminate("params.extra_opts must be a list")
+	extraOpts = " ".join(params["extra_opts"])
 
 containerId = subprocessCall([
 	"ssh",
 	sshUrl,
-	"docker run -d {envVars} {portMapping} {volumeMapping} -t {image} || exit 1".format(
+	"docker run -d {envVars} {portMapping} {volumeMapping} {extraOpts} -t {image} || exit 1".format(
 		image=dockerImage,
 		portMapping=portMapping,
 		envVars=envVars,
-		volumeMapping=volumeMapping
+		volumeMapping=volumeMapping,
+		extraOpts=extraOpts
 	)
 ]).stdout.split("\n")[0]
 
